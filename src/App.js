@@ -7,8 +7,9 @@ import 'swiper/css';
 
 const timezone = 'Europe/Rome';
 const daysBeforeAndAfter = 7;
-const workoutPlan = [
-  { label: "Push Day", tasks: ["Dips", "Push-ups", "Shoulder Press", "Running"] },
+
+const baseWorkoutPlan = [
+  { label: "Upper Body Push", tasks: ["Dips", "Push-ups", "Shoulder Press", "Running"] },
   { label: "Rest or Light Activity", tasks: ["Running"] },
   { label: "Legs", tasks: ["Bouncing Squats", "Running"] },
   { label: "Rest or Light Activity", tasks: ["Running"] },
@@ -21,41 +22,63 @@ function App() {
   const today = toZonedTime(new Date(), timezone);
   const currentDayIndex = daysBeforeAndAfter;
 
-  const getPlanForOffset = (offset) => {
-    const normalizedIndex = ((offset % workoutPlan.length) + workoutPlan.length) % workoutPlan.length;
-    return workoutPlan[normalizedIndex];
+  // Calculate offset to set Monday as "Upper Body Push"
+  const calculateMondayOffset = () => {
+    const todayIndex = today.getDay();
+    return (1 - todayIndex + 7) % 7;
   };
 
+  const getAdjustedWorkoutPlan = () => {
+    const offset = calculateMondayOffset();
+    return [
+      ...baseWorkoutPlan.slice(offset),
+      ...baseWorkoutPlan.slice(0, offset),
+    ];
+  };
+
+  // Initialize tasks with local storage data or create a new state for 14 days
   const initializeTasksState = () => {
     const savedTasks = JSON.parse(localStorage.getItem('tasksState')) || {};
+    const adjustedWorkoutPlan = getAdjustedWorkoutPlan();
     const initializedTasks = {};
+
     for (let i = -daysBeforeAndAfter; i <= daysBeforeAndAfter; i++) {
       const dateKey = format(addDays(today, i), 'yyyy-MM-dd');
-      initializedTasks[dateKey] = savedTasks[dateKey] || getPlanForOffset(i).tasks.map(() => ({
+      const planIndex = (i + adjustedWorkoutPlan.length) % adjustedWorkoutPlan.length;
+      initializedTasks[dateKey] = savedTasks[dateKey] || adjustedWorkoutPlan[planIndex].tasks.map(() => ({
         isComplete: false,
         isSkipped: false,
       }));
     }
+
     return initializedTasks;
   };
 
+  const [workoutPlan, setWorkoutPlan] = useState(getAdjustedWorkoutPlan);
+  const [tasksState, setTasksState] = useState(initializeTasksState);
   const [selectedDayIndex, setSelectedDayIndex] = useState(currentDayIndex);
   const swiperInstance = useRef(null);
-  const [tasksState, setTasksState] = useState(initializeTasksState);
 
   useEffect(() => {
     localStorage.setItem('tasksState', JSON.stringify(tasksState));
   }, [tasksState]);
 
+  const resetWorkoutPlan = () => {
+    const newWorkoutPlan = getAdjustedWorkoutPlan();
+    setWorkoutPlan(newWorkoutPlan);
+    setTasksState(initializeTasksState());
+    if (navigator.vibrate) navigator.vibrate(50);
+  };
+
   const toggleTaskCompletion = (dayKey, taskIndex) => {
-    if (navigator.vibrate) navigator.vibrate(30); // Trigger vibration on click
+    if (navigator.vibrate) navigator.vibrate(30);
     const updatedTasks = { ...tasksState };
     updatedTasks[dayKey][taskIndex].isComplete = !updatedTasks[dayKey][taskIndex].isComplete;
     setTasksState(updatedTasks);
   };
 
   const toggleSkipTask = (dayKey, taskIndex) => {
-    if (navigator.vibrate) navigator.vibrate(30); // Trigger vibration on skip
+    if (navigator.vibrate) navigator.vibrate(30);
     const updatedTasks = { ...tasksState };
     updatedTasks[dayKey][taskIndex].isSkipped = !updatedTasks[dayKey][taskIndex].isSkipped;
     setTasksState(updatedTasks);
@@ -65,22 +88,27 @@ function App() {
     if (swiperInstance.current) {
       swiperInstance.current.slideTo(currentDayIndex, 300);
       setSelectedDayIndex(currentDayIndex);
-      if (navigator.vibrate) navigator.vibrate(50); // Vibration on swipe
+      if (navigator.vibrate) navigator.vibrate(50);
     }
   };
 
   return (
     <Router>
       <div className="App h-screen w-screen fixed flex items-center justify-center bg-gray-100 overflow-hidden">
-        <div className="w-full max-w-md p-4 bg-white shadow-md rounded-lg h-full overflow-y-auto" style={{padding: '100px 10px 200px 10px'}}>
+        <div className="w-full max-w-md p-4 bg-white shadow-md rounded-lg h-full overflow-y-auto">
           <h1 className="text-2xl font-semibold text-center mb-6">Workout Tracker</h1>
 
-          {/* Go to Current Day Button */}
-          <button onClick={goToCurrentDay} className="text-blue-500 text-lg mb-6 w-full py-2 border rounded-lg">
-            Go to Today
-          </button>
+          {/* Buttons */}
+          <div className="flex space-x-4 mb-6">
+            <button onClick={goToCurrentDay} className="flex-grow text-blue-500 text-lg py-2 border rounded-lg">
+              Go to Today
+            </button>
+            <button onClick={resetWorkoutPlan} className="flex-grow text-red-500 text-lg py-2 border rounded-lg">
+              Reset to Monday Start
+            </button>
+          </div>
 
-          {/* Swiper Carousel for Days */}
+          {/* Swiper Carousel */}
           <Swiper
             spaceBetween={10}
             slidesPerView="auto"
@@ -88,7 +116,7 @@ function App() {
             initialSlide={currentDayIndex}
             onSlideChange={(swiper) => {
               setSelectedDayIndex(swiper.activeIndex);
-              if (navigator.vibrate) navigator.vibrate(30); // Vibration on slide change
+              if (navigator.vibrate) navigator.vibrate(30);
             }}
             onSwiper={(swiper) => (swiperInstance.current = swiper)}
           >
@@ -98,7 +126,7 @@ function App() {
               const dateKey = format(date, 'yyyy-MM-dd');
               const dayName = format(date, 'EEEE');
               const formattedDate = format(date, 'dd MMMM yyyy');
-              const plan = getPlanForOffset(offset);
+              const plan = workoutPlan[(offset + workoutPlan.length) % workoutPlan.length];
 
               return (
                 <SwiperSlide key={dateKey} style={{ width: 'auto' }}>
@@ -118,12 +146,13 @@ function App() {
             })}
           </Swiper>
 
+          {/* Routes and Day View */}
           <Routes>
             <Route path="/" element={<Home />} />
             {[...Array(2 * daysBeforeAndAfter + 1)].map((_, offsetIndex) => {
               const offset = offsetIndex - daysBeforeAndAfter;
               const dateKey = format(addDays(today, offset), 'yyyy-MM-dd');
-              const plan = getPlanForOffset(offset);
+              const plan = workoutPlan[(offset + workoutPlan.length) % workoutPlan.length];
               return (
                 <Route
                   key={dateKey}
@@ -142,24 +171,6 @@ function App() {
               );
             })}
           </Routes>
-
-          {/* Next Day Preview */}
-          {selectedDayIndex < 2 * daysBeforeAndAfter && (
-            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-              <h3 className="text-lg font-semibold text-blue-600">Next Day Preview</h3>
-              <p className="text-xs text-gray-400">
-                {format(addDays(today, selectedDayIndex - daysBeforeAndAfter + 1), 'dd MMMM yyyy')}
-              </p>
-              <p className="text-lg font-bold text-gray-800">
-                {format(addDays(today, selectedDayIndex - daysBeforeAndAfter + 1), 'EEEE')}
-              </p>
-              <ul className="text-base text-gray-600 mt-2 space-y-1">
-                {getPlanForOffset(selectedDayIndex - daysBeforeAndAfter + 1).tasks.map((task, i) => (
-                  <li key={i}>{task}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       </div>
     </Router>
