@@ -8,7 +8,7 @@ import 'swiper/css';
 const timezone = 'Europe/Rome';
 const daysBeforeAndAfter = 7;
 const workoutPlan = [
-  { label: "Upper Body Push", tasks: ["Dips", "Push-ups", "Shoulder Press", "Running"] },
+  { label: "Push Day", tasks: ["Dips", "Push-ups", "Shoulder Press", "Running"] },
   { label: "Rest or Light Activity", tasks: ["Running"] },
   { label: "Legs", tasks: ["Bouncing Squats", "Running"] },
   { label: "Rest or Light Activity", tasks: ["Running"] },
@@ -19,10 +19,9 @@ const workoutPlan = [
 
 function App() {
   const today = toZonedTime(new Date(), timezone);
-  const currentDayIndex = daysBeforeAndAfter; // This is the center day in our 14-day view
+  const currentDayIndex = daysBeforeAndAfter;
 
   const getPlanForOffset = (offset) => {
-    // Ensure we use a valid index in workoutPlan
     const normalizedIndex = ((offset % workoutPlan.length) + workoutPlan.length) % workoutPlan.length;
     return workoutPlan[normalizedIndex];
   };
@@ -44,36 +43,19 @@ function App() {
   const swiperInstance = useRef(null);
   const [tasksState, setTasksState] = useState(initializeTasksState);
 
-  // Update local storage whenever tasksState changes
   useEffect(() => {
     localStorage.setItem('tasksState', JSON.stringify(tasksState));
   }, [tasksState]);
 
-  // "Cron job" function to reset data daily and keep only recent 14 days
-  useEffect(() => {
-    const lastResetDate = localStorage.getItem('lastResetDate');
-    const todayDate = format(today, 'yyyy-MM-dd');
-    if (lastResetDate !== todayDate) {
-      const updatedTasks = {};
-      for (let i = -daysBeforeAndAfter; i <= daysBeforeAndAfter; i++) {
-        const dateKey = format(addDays(today, i), 'yyyy-MM-dd');
-        updatedTasks[dateKey] = tasksState[dateKey] || getPlanForOffset(i).tasks.map(() => ({
-          isComplete: false,
-          isSkipped: false,
-        }));
-      }
-      setTasksState(updatedTasks);
-      localStorage.setItem('lastResetDate', todayDate);
-    }
-  }, [tasksState, today]);
-
   const toggleTaskCompletion = (dayKey, taskIndex) => {
+    if (navigator.vibrate) navigator.vibrate(30); // Trigger vibration on click
     const updatedTasks = { ...tasksState };
     updatedTasks[dayKey][taskIndex].isComplete = !updatedTasks[dayKey][taskIndex].isComplete;
     setTasksState(updatedTasks);
   };
 
   const toggleSkipTask = (dayKey, taskIndex) => {
+    if (navigator.vibrate) navigator.vibrate(30); // Trigger vibration on skip
     const updatedTasks = { ...tasksState };
     updatedTasks[dayKey][taskIndex].isSkipped = !updatedTasks[dayKey][taskIndex].isSkipped;
     setTasksState(updatedTasks);
@@ -83,27 +65,31 @@ function App() {
     if (swiperInstance.current) {
       swiperInstance.current.slideTo(currentDayIndex, 300);
       setSelectedDayIndex(currentDayIndex);
+      if (navigator.vibrate) navigator.vibrate(50); // Vibration on swipe
     }
   };
 
   return (
     <Router>
-      <div className="App min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="w-full max-w-lg p-4 bg-white shadow-md rounded-lg">
-          <h1 className="text-xl font-semibold text-center mb-4">Workout Tracker</h1>
+      <div className="App h-screen w-screen fixed flex items-center justify-center bg-gray-100 overflow-hidden">
+        <div className="w-full max-w-md p-4 bg-white shadow-md rounded-lg h-full overflow-y-auto" style={{padding: '100px 10px 200px 10px'}}>
+          <h1 className="text-2xl font-semibold text-center mb-6">Workout Tracker</h1>
 
           {/* Go to Current Day Button */}
-          <button onClick={goToCurrentDay} className="text-blue-500 text-sm mb-4">
-            Go to Current Day
+          <button onClick={goToCurrentDay} className="text-blue-500 text-lg mb-6 w-full py-2 border rounded-lg">
+            Go to Today
           </button>
 
-          {/* Swiper Carousel for Days Before, Current, and After */}
+          {/* Swiper Carousel for Days */}
           <Swiper
             spaceBetween={10}
             slidesPerView="auto"
             centeredSlides
             initialSlide={currentDayIndex}
-            onSlideChange={(swiper) => setSelectedDayIndex(swiper.activeIndex)}
+            onSlideChange={(swiper) => {
+              setSelectedDayIndex(swiper.activeIndex);
+              if (navigator.vibrate) navigator.vibrate(30); // Vibration on slide change
+            }}
             onSwiper={(swiper) => (swiperInstance.current = swiper)}
           >
             {[...Array(2 * daysBeforeAndAfter + 1)].map((_, index) => {
@@ -124,31 +110,13 @@ function App() {
                     >
                       <p className="text-xs text-gray-400 mb-1">{formattedDate}</p>
                       <p className="text-sm font-bold text-gray-800">{dayName}</p>
-                      <p className="text-sm text-blue-600 mb-1">{plan.label}</p>
+                      <p className="text-base text-blue-600 mb-1">{plan.label}</p>
                     </div>
                   </Link>
                 </SwiperSlide>
               );
             })}
           </Swiper>
-
-          {/* Next Day Preview */}
-          {selectedDayIndex < 2 * daysBeforeAndAfter && (
-            <div className="mt-4 p-3 border rounded-lg bg-gray-50">
-              <h3 className="text-sm font-semibold text-blue-600">Next Day Preview</h3>
-              <p className="text-xs text-gray-400">
-                {format(addDays(today, selectedDayIndex - daysBeforeAndAfter + 1), 'dd MMMM yyyy')}
-              </p>
-              <p className="text-sm font-bold text-gray-800">
-                {format(addDays(today, selectedDayIndex - daysBeforeAndAfter + 1), 'EEEE')}
-              </p>
-              <ul className="text-sm text-gray-600 mt-2">
-                {getPlanForOffset(selectedDayIndex - daysBeforeAndAfter + 1).tasks.map((task, i) => (
-                  <li key={i}>{task}</li>
-                ))}
-              </ul>
-            </div>
-          )}
 
           <Routes>
             <Route path="/" element={<Home />} />
@@ -174,6 +142,24 @@ function App() {
               );
             })}
           </Routes>
+
+          {/* Next Day Preview */}
+          {selectedDayIndex < 2 * daysBeforeAndAfter && (
+            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+              <h3 className="text-lg font-semibold text-blue-600">Next Day Preview</h3>
+              <p className="text-xs text-gray-400">
+                {format(addDays(today, selectedDayIndex - daysBeforeAndAfter + 1), 'dd MMMM yyyy')}
+              </p>
+              <p className="text-lg font-bold text-gray-800">
+                {format(addDays(today, selectedDayIndex - daysBeforeAndAfter + 1), 'EEEE')}
+              </p>
+              <ul className="text-base text-gray-600 mt-2 space-y-1">
+                {getPlanForOffset(selectedDayIndex - daysBeforeAndAfter + 1).tasks.map((task, i) => (
+                  <li key={i}>{task}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </Router>
@@ -188,29 +174,29 @@ const Home = () => (
 
 const DayView = ({ dayLabel, date, tasks, tasksState, toggleTaskCompletion, toggleSkipTask }) => (
   <div className="p-4">
-    <h2 className="text-lg font-semibold mb-2">{dayLabel}</h2>
-    <p className="text-xs text-gray-400 mb-4">{date}</p>
-    <h3 className="text-sm text-blue-600 font-medium mb-2">Tasks for Today</h3>
+    <h2 className="text-xl font-semibold mb-3">{dayLabel}</h2>
+    <p className="text-sm text-gray-400 mb-4">{date}</p>
+    <h3 className="text-lg text-blue-600 font-medium mb-4">Tasks for Today</h3>
     {tasks.map((task, taskIndex) => (
-      <div key={taskIndex} className="flex items-center justify-between mb-2">
+      <div key={taskIndex} className="flex items-center justify-between mb-3 py-2 px-4 border rounded-lg bg-white">
         <label className="flex items-center">
           <input
             type="checkbox"
             checked={tasksState[taskIndex]?.isComplete || false}
             onChange={() => toggleTaskCompletion(taskIndex)}
-            className="mr-2"
+            className="mr-2 h-6 w-6"
           />
           <span
-            className={`${tasksState[taskIndex]?.isComplete ? "line-through text-gray-400" : ""} ${
-              tasksState[taskIndex]?.isSkipped ? "text-gray-500 italic" : ""
-            }`}
+            className={`text-lg ${
+              tasksState[taskIndex]?.isComplete ? "line-through text-gray-400" : ""
+            } ${tasksState[taskIndex]?.isSkipped ? "text-gray-500 italic" : ""}`}
           >
             {task}
           </span>
         </label>
         <button
           onClick={() => toggleSkipTask(taskIndex)}
-          className={`text-xs ${tasksState[taskIndex]?.isSkipped ? "text-gray-400" : "text-red-500"}`}
+          className={`text-base ${tasksState[taskIndex]?.isSkipped ? "text-gray-400" : "text-red-500"}`}
         >
           {tasksState[taskIndex]?.isSkipped ? "Unskip" : "Skip"}
         </button>
@@ -218,8 +204,8 @@ const DayView = ({ dayLabel, date, tasks, tasksState, toggleTaskCompletion, togg
     ))}
     {tasksState.every(task => task.isComplete) && (
       <div className="mt-4 p-4 bg-green-100 text-green-800 rounded-lg">
-        <h3 className="text-lg font-bold">Day Complete!</h3>
-        <p className="text-sm">Well done on completing your tasks for {dayLabel}!</p>
+        <h3 className="text-xl font-bold">Day Complete!</h3>
+        <p className="text-lg">Well done on completing your tasks for {dayLabel}!</p>
       </div>
     )}
   </div>
