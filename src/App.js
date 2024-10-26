@@ -1,79 +1,97 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
+import { format, addDays } from 'date-fns';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import 'swiper/css';
 
 const workoutPlan = [
-  { day: "Sunday", tasks: [{ name: "Running", isComplete: false }, { name: "Stretching", isComplete: false }] },
-  { day: "Monday", tasks: [{ name: "Push-ups", isComplete: false }, { name: "Shoulder Press", isComplete: false }] },
-  { day: "Tuesday", tasks: [{ name: "Pull-ups", isComplete: false }, { name: "Barbell Shrugs", isComplete: false }] },
-  { day: "Wednesday", tasks: [{ name: "Bouncing Squats", isComplete: false }, { name: "Leg Press", isComplete: false }] },
-  { day: "Thursday", tasks: [{ name: "Rest Day", isComplete: true }] },
-  { day: "Friday", tasks: [{ name: "Dips", isComplete: false }, { name: "Chest Fly", isComplete: false }] },
-  { day: "Saturday", tasks: [{ name: "Hanging Leg Raises", isComplete: false }, { name: "Forearm Curls", isComplete: false }] },
+  { label: "Upper Body Push", tasks: ["Dips", "Push-ups", "Shoulder Press", "Running"] },
+  { label: "Rest or Light Activity", tasks: ["Running"] },
+  { label: "Legs", tasks: ["Bouncing Squats", "Running"] },
+  { label: "Rest or Light Activity", tasks: ["Running"] },
+  { label: "Pull Day", tasks: ["Pull-ups", "Barbell Shrugs", "Running"] },
+  { label: "Forearms, Core, and Neck", tasks: ["Wrist Curls", "Reverse Curls", "Leg Raises", "Neck Exercises", "Running"] },
+  { label: "Rest or Light Activity", tasks: ["Running"] },
 ];
 
 function App() {
-  const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const currentDayIndex = new Date().getDay();
-  const [tasks, setTasks] = useState(workoutPlan[currentDayIndex].tasks);
-  const [dayIndex, setDayIndex] = useState(currentDayIndex);
+  const today = new Date();
+  const currentDayIndex = today.getDay();
+  const [selectedDayIndex, setSelectedDayIndex] = useState(currentDayIndex);
+  const [tasksState, setTasksState] = useState(() => {
+    const savedTasks = JSON.parse(localStorage.getItem('tasksState'));
+    return savedTasks || workoutPlan.map((plan) =>
+      plan.tasks.map(() => ({ isComplete: false, isSkipped: false }))
+    );
+  });
 
   useEffect(() => {
-    setTasks(workoutPlan[dayIndex].tasks);
-  }, [dayIndex]);
+    localStorage.setItem('tasksState', JSON.stringify(tasksState));
+  }, [tasksState]);
 
-  const toggleTaskCompletion = (taskIndex) => {
-    const newTasks = [...tasks];
-    newTasks[taskIndex].isComplete = !newTasks[taskIndex].isComplete;
-    setTasks(newTasks);
+  const toggleTaskCompletion = (dayIndex, taskIndex) => {
+    const newTasksState = [...tasksState];
+    newTasksState[dayIndex][taskIndex].isComplete = !newTasksState[dayIndex][taskIndex].isComplete;
+    setTasksState(newTasksState);
   };
 
-  const carryOverIncompleteTasks = () => {
-    const incompleteTasks = tasks.filter(task => !task.isComplete);
-    if (dayIndex < daysOfWeek.length - 1) {
-      workoutPlan[dayIndex + 1].tasks = [...incompleteTasks, ...workoutPlan[dayIndex + 1].tasks];
-      setDayIndex(dayIndex + 1);
-    }
-  };
-
-  const skipTask = (taskIndex) => {
-    const taskToSkip = tasks[taskIndex];
-    setTasks(tasks.filter((_, index) => index !== taskIndex));
-    if (dayIndex < daysOfWeek.length - 1) {
-      workoutPlan[dayIndex + 1].tasks.unshift(taskToSkip);
-    }
+  const toggleSkipTask = (dayIndex, taskIndex) => {
+    const newTasksState = [...tasksState];
+    newTasksState[dayIndex][taskIndex].isSkipped = !newTasksState[dayIndex][taskIndex].isSkipped;
+    setTasksState(newTasksState);
   };
 
   return (
     <Router>
       <div className="App min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="w-full max-w-sm p-4 bg-white shadow-md rounded-lg">
+        <div className="w-full max-w-lg p-4 bg-white shadow-md rounded-lg">
           <h1 className="text-xl font-semibold text-center mb-4">Workout Tracker</h1>
-          <nav className="flex justify-around mb-6">
-            {daysOfWeek.map((day, index) => (
-              <Link
-                key={day}
-                to={`/${day}`}
-                onClick={() => setDayIndex(index)}
-                className={`text-sm font-medium ${dayIndex === index ? 'text-blue-600' : 'text-gray-500'}`}
-              >
-                {day}
-              </Link>
-            ))}
-          </nav>
+
+          {/* Swiper Carousel */}
+          <Swiper
+            spaceBetween={10}
+            slidesPerView={1.2}
+            centeredSlides
+            initialSlide={currentDayIndex}
+            onSlideChange={(swiper) => setSelectedDayIndex(swiper.activeIndex)}
+          >
+            {workoutPlan.map((plan, index) => {
+              const date = addDays(today, index - currentDayIndex);
+              const dayName = format(date, 'EEEE');
+              const formattedDate = format(date, 'dd MMMM yyyy');
+              return (
+                <SwiperSlide key={index}>
+                  <Link to={`/${index}`} className="block">
+                    <div
+                      className={`border p-3 rounded-lg ${
+                        selectedDayIndex === index ? 'border-blue-500' : 'border-gray-200'
+                      } bg-gray-50 text-center`}
+                    >
+                      <p className="text-xs text-gray-400 mb-1">{formattedDate}</p>
+                      <p className="text-sm font-bold text-gray-800">{dayName}</p>
+                      <p className="text-sm text-blue-600 mb-1">{plan.label}</p>
+                    </div>
+                  </Link>
+                </SwiperSlide>
+              );
+            })}
+          </Swiper>
+
           <Routes>
             <Route path="/" element={<Home />} />
-            {daysOfWeek.map((day, index) => (
+            {workoutPlan.map((plan, dayIndex) => (
               <Route
-                key={day}
-                path={`/${day}`}
+                key={dayIndex}
+                path={`/${dayIndex}`}
                 element={
                   <DayView
-                    day={day}
-                    tasks={tasks}
+                    dayIndex={dayIndex}
+                    dayLabel={format(addDays(today, dayIndex - currentDayIndex), 'EEEE')}
+                    date={format(addDays(today, dayIndex - currentDayIndex), 'dd MMMM yyyy')}
+                    tasks={plan.tasks}
+                    tasksState={tasksState[dayIndex]}
                     toggleTaskCompletion={toggleTaskCompletion}
-                    carryOverIncompleteTasks={carryOverIncompleteTasks}
-                    skipTask={skipTask}
-                    nextDayTasks={workoutPlan[index + 1]?.tasks || []}
+                    toggleSkipTask={toggleSkipTask}
                   />
                 }
               />
@@ -91,37 +109,36 @@ const Home = () => (
   </div>
 );
 
-const DayView = ({ day, tasks, toggleTaskCompletion, carryOverIncompleteTasks, skipTask, nextDayTasks }) => (
-  <div>
-    <h2 className="text-lg font-medium mb-2">Tasks for {day}</h2>
-    {tasks.map((task, index) => (
-      <div key={index} className="flex items-center justify-between mb-2">
+const DayView = ({ dayIndex, dayLabel, date, tasks, tasksState, toggleTaskCompletion, toggleSkipTask }) => (
+  <div className="p-4">
+    <h2 className="text-lg font-semibold mb-2">{dayLabel}</h2>
+    <p className="text-xs text-gray-400 mb-4">{date}</p>
+    <h3 className="text-sm text-blue-600 font-medium mb-2">Tasks for Today</h3>
+    {tasks.map((task, taskIndex) => (
+      <div key={taskIndex} className="flex items-center justify-between mb-2">
         <label className="flex items-center">
           <input
             type="checkbox"
-            checked={task.isComplete}
-            onChange={() => toggleTaskCompletion(index)}
+            checked={tasksState[taskIndex]?.isComplete || false}
+            onChange={() => toggleTaskCompletion(dayIndex, taskIndex)}
             className="mr-2"
           />
-          <span className={task.isComplete ? "line-through text-gray-400" : ""}>{task.name}</span>
+          <span
+            className={`${tasksState[taskIndex]?.isComplete ? "line-through text-gray-400" : ""} ${
+              tasksState[taskIndex]?.isSkipped ? "text-gray-500 italic" : ""
+            }`}
+          >
+            {task}
+          </span>
         </label>
-        {!task.isComplete && (
-          <button onClick={() => skipTask(index)} className="text-xs text-red-500">Skip</button>
-        )}
+        <button
+          onClick={() => toggleSkipTask(dayIndex, taskIndex)}
+          className={`text-xs ${tasksState[taskIndex]?.isSkipped ? "text-gray-400" : "text-red-500"}`}
+        >
+          {tasksState[taskIndex]?.isSkipped ? "Unskip" : "Skip"}
+        </button>
       </div>
     ))}
-    <button onClick={carryOverIncompleteTasks} className="w-full mt-4 p-2 bg-blue-500 text-white rounded-md">
-      Complete Day
-    </button>
-
-    {nextDayTasks.length > 0 && (
-      <div className="mt-6">
-        <h3 className="text-md font-semibold mb-2">Preview of Next Day’s Tasks</h3>
-        {nextDayTasks.map((task, index) => (
-          <div key={index} className="text-sm text-gray-600">{task.name}</div>
-        ))}
-      </div>
-    )}
   </div>
 );
 
